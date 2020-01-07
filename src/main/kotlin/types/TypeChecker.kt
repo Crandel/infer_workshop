@@ -2,6 +2,7 @@ package types
 
 import syntax.*
 import kotlin.Exception
+import kotlin.math.exp
 
 inline class Substitution(val subst: HashMap<Int, Monotype> = hashMapOf()) {
     fun apply(ty: Monotype): Monotype {
@@ -41,9 +42,27 @@ class TypeChecker(var checkState: CheckState) {
         throw Exception("Can't match ${ty1.pretty()} with ${ty2.pretty()}")
     }
 
-    private fun infer(expr: Expression): Monotype {
-        TODO()
-    }
+    private fun infer(expr: Expression): Monotype =
+        when (expr) {
+            is Expression.Int -> Monotype.Int
+            is Expression.Bool -> Monotype.Bool
+            is Expression.String -> Monotype.String
+            is Expression.Var ->
+                checkState.environment[expr.name] ?: throw Exception("Unknown var $expr.name")
+            is Expression.Let -> {
+                withName(expr.binder, infer(expr.expr)) {
+                    infer(expr.body)
+                }
+            }
+            else -> Monotype.Bool
+        }
+    private fun <T>withName(binder: Name, ty: Monotype, action: () -> T): T {
+        val tmp = checkState.environment.clone()
+        checkState.environment[binder] = ty
+        val result: T = action()
+        checkState.environment = tmp
+        return result
 
+    }
     fun inferExpr(expr: Expression): Monotype = zonk(infer(expr))
 }
