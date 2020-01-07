@@ -2,7 +2,6 @@ package types
 
 import syntax.*
 import kotlin.Exception
-import kotlin.math.exp
 
 inline class Substitution(val subst: HashMap<Int, Monotype> = hashMapOf()) {
     fun apply(ty: Monotype): Monotype {
@@ -48,21 +47,29 @@ class TypeChecker(var checkState: CheckState) {
             is Expression.Bool -> Monotype.Bool
             is Expression.String -> Monotype.String
             is Expression.Var ->
-                checkState.environment[expr.name] ?: throw Exception("Unknown var $expr.name")
+                checkState.environment[expr.name] ?: throw Exception("Unknown variable ${expr.name}")
             is Expression.Let -> {
                 withName(expr.binder, infer(expr.expr)) {
                     infer(expr.body)
                 }
             }
-            else -> Monotype.Bool
+            is Expression.Lambda -> {
+                val tyArg = freshUnknown()
+                val tyRes = withName(expr.binder, tyArg) {
+                    infer(expr.body)
+                }
+                Monotype.Function(tyArg, tyRes)
+            }
+            else -> TODO()
         }
+
     private fun <T>withName(binder: Name, ty: Monotype, action: () -> T): T {
         val tmp = checkState.environment.clone()
         checkState.environment[binder] = ty
         val result: T = action()
         checkState.environment = tmp
         return result
-
     }
+
     fun inferExpr(expr: Expression): Monotype = zonk(infer(expr))
 }
