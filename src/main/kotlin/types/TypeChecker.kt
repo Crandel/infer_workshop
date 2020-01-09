@@ -56,9 +56,9 @@ class TypeChecker(var checkState: CheckState) {
         }
     }
 
-    private fun solveType(u: Int, ty2: Monotype) {
-        if (ty2.unknowns().contains(u)) throw Exception("")
-        checkState.substitution.subst[u] = ty2
+    private fun solveType(u: Int, ty: Monotype) {
+        if (ty.unknowns().contains(u)) throw Exception("Occurs check failed")
+        checkState.substitution.subst[u] = ty
     }
 
     private fun infer(expr: Expression): Monotype =
@@ -69,7 +69,10 @@ class TypeChecker(var checkState: CheckState) {
             is Expression.Var ->
                 checkState.environment[expr.name] ?: throw Exception("Unknown variable ${expr.name}")
             is Expression.Let -> {
-                withName(expr.binder, infer(expr.expr)) {
+                val tyBinder = freshUnknown()
+                withName(expr.binder, tyBinder) {
+                    val inferBinder = infer(expr.expr)
+                    unify(tyBinder, inferBinder)
                     infer(expr.body)
                 }
             }
@@ -87,7 +90,14 @@ class TypeChecker(var checkState: CheckState) {
                 unify(tyFun, Monotype.Function(tyArg, tyRes))
                 tyRes
             }
-            else -> TODO()
+            is Expression.If -> {
+                val tyCond = infer(expr.condition)
+                unify(tyCond, Monotype.Bool)
+                val tyThen = infer(expr.thenCase)
+                val tyElse = infer(expr.elseCase)
+                unify(tyThen, tyElse)
+                tyThen
+            }
         }
 
     private fun <T>withName(binder: Name, ty: Monotype, action: () -> T): T {
